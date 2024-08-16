@@ -3,6 +3,7 @@ import User from "../../models/User";
 import bcrypt from "bcryptjs";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import Joi from "joi";
+import authenticate  from "../../core/authValidation";
 
 const router = Router();
 
@@ -14,42 +15,29 @@ const registerSchema = Joi.object({
 });
 
 //REGISTER - NEEDS CHANGE
-router.post("/register", async (req: Request, res: Response) => {
+router.post("/register", authenticate, async (req: Request, res: Response) => {
   try {
-    //CHECK IF MAIL ALREADY EXISTS
-    const emailExist = await User.findOne({ email: req.body.email });
+   
+    const values = JSON.parse(JSON.stringify(req.user));
+    const user = new User({
+      userId : values.user_id,
+      email: values.email,
+      firstName: values.given_name,
+      lastName: values.family_name
+    });
+    const emailExist = await User.findOne({ email: user.email  });
     if (emailExist) {
       return res
         .status(400)
         .json({ status: 400, message: "Email Already Exists" });
     }
 
-    //HASHING THE PASSWORD
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(req.body.password, salt);
-
-    const user = new User({
-      name: req.body.name,
-      email: req.body.email,
-      password: hashedPassword,
-    });
-
-    //VALIDATION OF USER INPUTS
-    await registerSchema.validateAsync(req.body);
-
     //THE USER IS ADDED
     await user.save();
 
-    //CREATE TOKEN
-    const token = jwt.sign({ _id: user._id }, process.env.TOKEN_SECRET!, {
-      expiresIn: "6h", // expires in 6 hours
-    });
-
-    res.status(200).header("auth-token", token).json({
-      status: "200",
-      token: token,
-      userId: user._id,
-      name: user.name,
+    res.status(201).json({
+      status: "201",
+      message: "created",
     });
   } catch (error: any) {
     if (error.details) {
@@ -81,7 +69,7 @@ router.post("/signin", async (req: Request, res: Response) => {
 
     const validPassword = await bcrypt.compare(
       req.body.password,
-      user.password
+      "user.password"
     );
 
     if (!validPassword) {
@@ -94,15 +82,15 @@ router.post("/signin", async (req: Request, res: Response) => {
     await loginSchema.validateAsync(req.body);
 
     //CREATE TOKEN
-    const token = jwt.sign({ _id: user._id }, process.env.TOKEN_SECRET!, {
+    const token = jwt.sign({ _id: user.userId }, process.env.TOKEN_SECRET!, {
       expiresIn: "6h", // expires in 6 hours
     });
 
     res.status(200).header("auth-token", token).json({
       status: "200",
       token: token,
-      userId: user._id,
-      name: user.name,
+      userId: user.userId,
+      name: user.firstName,
     });
   } catch (error: any) {
     if (error.details) {
