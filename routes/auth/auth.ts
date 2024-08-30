@@ -4,6 +4,9 @@ import bcrypt from "bcryptjs";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import Joi from "joi";
 import authenticate  from "../../core/authValidation";
+import { CosmosClient, CosmosClientOptions } from "@azure/cosmos";
+
+import database, { getContainer } from "../../db/dbClient";
 
 const router = Router();
 
@@ -17,29 +20,37 @@ const registerSchema = Joi.object({
 //REGISTER - NEEDS CHANGE
 router.post("/register", authenticate, async (req: Request, res: Response) => {
   try {
-   
+
+    const databaseId:string = String(process.env.DB_ID);
+
+    const { container } = await getContainer(databaseId, 'USERS');
+
     const values = JSON.parse(JSON.stringify(req.user));
-    const user = new User({
-      userId : values.user_id,
-      email: values.email,
-      firstName: values.given_name,
-      lastName: values.family_name
-    });
-    const emailExist = await User.findOne({ email: user.email  });
+   
+    const user = {
+      "id": values.user_id,
+      "email": values.email,
+      "firstName": values.given_name,
+      "lastName": values.family_name
+    };
+    /*const emailExist = await User.findOne({ email: user.email  });
     if (emailExist) {
       return res
         .status(400)
         .json({ status: 400, message: "Email Already Exists" });
     }
-
+*/
     //THE USER IS ADDED
-    await user.save();
+    //await user.save();
+    const createResponse = await container.items.create(user);
+
 
     res.status(201).json({
       status: "201",
       message: "created",
     });
   } catch (error: any) {
+    console.log(error.details);
     if (error.details) {
       return res
         .status(400)
