@@ -187,57 +187,57 @@ router.post(
   "/complete-profile",
   upload.single("licenseCertificate"),
   async (req: Request, res: Response) => {
-    try {
-      const {
-        email,
-        npiNumber,
-        primarySpeciality,
-        licensedState,
-        licenseNumber,
-        expirationDate,
-        deaNumber,
-      } = req.body;
+    const {
+      email,
+      npiNumber,
+      primarySpeciality,
+      licensedState,
+      licenseNumber,
+      expirationDate,
+      deaNumber,
+    } = req.body;
 
-      let licenseCertificateUrl = "";
-      if (req.file) {
-        console.log(req.file);
-        // Upload file to Azure Blob Storage
-        licenseCertificateUrl = await uploadToBlobStorage(
-          req.file.buffer,
-          `${req.file.originalname}-${Date.now()}`,
-          "licenses"
-        );
-      }
-
-      const collection = await getDbCollection("user");
-      // Find user by email
-      const user = await collection.findOne({ email });
-
-      if (!user) {
-        return res.status(404).json({ message: "User not found." });
-      }
-
-      await collection.updateOne(
-        { email },
-        {
-          $set: {
-            npiNumber: npiNumber,
-            primarySpeciality: primarySpeciality,
-            licensedState: licensedState,
-            licenseNumber: licenseNumber,
-            expirationDate: expirationDate,
-            deaNumber: deaNumber,
-            licenseCertificateUrl: [
-              ...user.licenseCertificateUrl,
-              licenseCertificateUrl,
-            ],
-          },
-        }
+    let licenseCertificateUrl = "";
+    if (req.file) {
+      console.log(req.file);
+      // Upload file to Azure Blob Storage
+      licenseCertificateUrl = await uploadToBlobStorage(
+        req.file.buffer,
+        `${req.file.originalname}-${Date.now()}`,
+        "licenses"
       );
+    }
 
-      res
-        .status(201)
-        .json({ message: "Profile created successfully", profile: user });
+    const collection = await getDbCollection("user");
+    // Find user by email
+    const user = await collection.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    await collection.updateOne(
+      { email },
+      {
+        $set: {
+          npiNumber: npiNumber,
+          primarySpeciality: primarySpeciality,
+          licensedState: licensedState,
+          licenseNumber: licenseNumber,
+          expirationDate: expirationDate,
+          deaNumber: deaNumber,
+          licenseCertificateUrl: [
+            ...user.licenseCertificateUrl,
+            licenseCertificateUrl,
+          ],
+        },
+      }
+    );
+
+    res
+      .status(201)
+      .json({ message: "Profile created successfully", profile: user });
+    try {
     } catch (error) {
       res
         .status(500)
@@ -253,6 +253,19 @@ router.get("/npi/:number", async (req: Request, res: Response) => {
       `https://npiregistry.cms.hhs.gov/api/?number=${npiNumber}&version=2.1`
     );
     res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching NPI data", error });
+  }
+});
+
+router.get("/allusers", async (req: Request, res: Response) => {
+  const collection = await getDbCollection("user");
+  // Find user by email
+  const users = await collection.find().toArray();
+  console.log({ users });
+
+  res.status(200).send(users);
+  try {
   } catch (error) {
     res.status(500).json({ message: "Error fetching NPI data", error });
   }
