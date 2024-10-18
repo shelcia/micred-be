@@ -190,7 +190,9 @@ router.post("/complete-profile", upload.single("licenseCertificate"), (req, res)
             .json({ message: "Profile created successfully", profile: user });
     }
     catch (error) {
-        res.status(500).json({ message: "Error" });
+        res
+            .status(500)
+            .json({ message: "Error while completing form", error: error });
     }
 }));
 router.get("/npi/:number", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
