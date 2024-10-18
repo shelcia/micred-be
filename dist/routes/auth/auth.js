@@ -179,7 +179,7 @@ router.post("/complete-profile", upload.single("licenseCertificate"), (req, res)
             expirationDate: expirationDate,
             deaNumber: deaNumber,
             licenseCertificateUrl: [
-                ...user.licenseCertificateUrl,
+                ...(user.licenseCertificateUrl ? user.licenseCertificateUrl : []),
                 licenseCertificateUrl,
             ],
         },
