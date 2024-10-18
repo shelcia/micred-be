@@ -35,8 +35,8 @@ const options = {
     policyName: POLICY_NAME,
     isB2C: Boolean(IS_B2C),
     validateIssuer: Boolean(VALIDATE_ISSUER),
-    loggingLevel: 'info',
-    passReqToCallback: false
+    loggingLevel: "info",
+    passReqToCallback: false,
 };
 const bearerStrategy = new passport_azure_ad_1.BearerStrategy(options, (token, done) => {
     const response = JSON.parse(JSON.stringify(token));
