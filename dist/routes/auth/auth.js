@@ -128,7 +128,14 @@ router.post("/complete-name", (req, res) => __awaiter(void 0, void 0, void 0, fu
                 lastName: lastName,
             },
         });
-        res.status(200).json({ message: "Profile updated successfully." });
+        const token = jsonwebtoken_1.default.sign({ _id: user._id }, process.env.TOKEN_SECRET, {
+            expiresIn: "6h", // expires in 6 hours
+        });
+        res.status(200).json({
+            message: {
+                token: token,
+            },
+        });
     }
     catch (error) {
         console.error("Error updating profile:", error);

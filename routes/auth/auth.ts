@@ -154,7 +154,15 @@ router.post("/complete-name", async (req: Request, res: Response) => {
       }
     );
 
-    res.status(200).json({ message: "Profile updated successfully." });
+    const token = jwt.sign({ _id: user._id }, process.env.TOKEN_SECRET!, {
+      expiresIn: "6h", // expires in 6 hours
+    });
+
+    res.status(200).json({
+      message: {
+        token: token,
+      },
+    });
   } catch (error) {
     console.error("Error updating profile:", error);
     res.status(500).json({ message: "Failed to update profile." });
