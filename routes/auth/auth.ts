@@ -227,7 +227,7 @@ router.post(
           expirationDate: expirationDate,
           deaNumber: deaNumber,
           licenseCertificateUrl: [
-            ...user.licenseCertificateUrl,
+            ...(user.licenseCertificateUrl ? user.licenseCertificateUrl : []),
             licenseCertificateUrl,
           ],
         },
