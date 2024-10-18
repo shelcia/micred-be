@@ -1,3 +1,60 @@
+import { Router, Request, Response } from "express";
+import multer from "multer";
+import { getDbCollection, uploadToBlobStorage } from "../../lib/helpers";
+
+const router = Router();
+
+const upload = multer({ storage: multer.memoryStorage() });
+
+router.post(
+  "/cv-upload",
+  upload.single("cv"),
+  async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body;
+
+      let cvUrl = "";
+      if (req.file) {
+        console.log(req.file);
+        // Upload file to Azure Blob Storage
+        cvUrl = await uploadToBlobStorage(
+          req.file.buffer,
+          `${req.file.originalname}-${Date.now()}`,
+          "cv-docs"
+        );
+      }
+
+      const collection = await getDbCollection("cv");
+      // Find user by email
+      const user = await collection.findOne({ email });
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found." });
+      }
+
+      await collection.updateOne(
+        { email },
+        {
+          $set: {
+            cvDoc: cvUrl,
+          },
+        },
+        { upsert: true } // Create a new document if one does not exist
+      );
+
+      res
+        .status(201)
+        .json({ message: "CV uploaded successfully", profile: user });
+    } catch (error) {
+      res
+        .status(500)
+        .json({ message: "Error while completing form", error: error });
+    }
+  }
+);
+
+export default router;
+
 // import { Router } from "express";
 
 // const router = Router();

@@ -6,6 +6,8 @@ import bodyParser from "body-parser";
 import authRoute from "./routes/auth/auth";
 import docRoute from "./routes/document/document";
 import profileRoute from "./routes/profile/profile";
+import vaultRoute from "./routes/vault/vault";
+import cvRoute from "./routes/cv/cv";
 
 dotenv.config();
 
@@ -24,6 +26,8 @@ app.use(
 app.use("/api/auth", authRoute);
 app.use("/api/doc", docRoute);
 app.use("/api/profile", profileRoute);
+app.use("/api/vault", vaultRoute);
+app.use("/api/cv", cvRoute);
 
 app.get("/", (req: Request, res: Response) => {
   res.send(`<p>MiCred Backend!</p>`);

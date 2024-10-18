@@ -10,6 +10,8 @@ const body_parser_1 = __importDefault(require("body-parser"));
 const auth_1 = __importDefault(require("./routes/auth/auth"));
 const document_1 = __importDefault(require("./routes/document/document"));
 const profile_1 = __importDefault(require("./routes/profile/profile"));
+const vault_1 = __importDefault(require("./routes/vault/vault"));
+const cv_1 = __importDefault(require("./routes/cv/cv"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 8000;
@@ -20,6 +22,8 @@ app.use(body_parser_1.default.raw({ type: "application/octet-stream", limit: "50
 app.use("/api/auth", auth_1.default);
 app.use("/api/doc", document_1.default);
 app.use("/api/profile", profile_1.default);
+app.use("/api/vault", vault_1.default);
+app.use("/api/cv", cv_1.default);
 app.get("/", (req, res) => {
     res.send(`<p>MiCred Backend!</p>`);
 });

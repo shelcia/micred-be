@@ -49,7 +49,12 @@ router.post("/verify-otp", (req, res) => __awaiter(void 0, void 0, void 0, funct
         // Check if OTP matches and is still valid (you can also add a timestamp check here)
         if (vault.otp === otp) {
             // If valid, clear the OTP from the database or mark as verified
-            yield collection.updateOne({ email }, { $unset: { otp: "" }, $set: { otpVerified: true } });
+            yield collection.updateOne({ email }, {
+                $unset: { otp: "" },
+                $set: {
+                    otpVerified: true,
+                },
+            });
             return res.status(200).json("OTP verified successfully");
         }
         else {
@@ -59,6 +64,52 @@ router.post("/verify-otp", (req, res) => __awaiter(void 0, void 0, void 0, funct
     catch (error) {
         console.error("Error verifying OTP:", error);
         res.status(500).send("Failed to verify OTP");
+    }
+}));
+router.post("/save-pin", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { email, pin } = req.body;
+    if (!email) {
+        res.status(400).send("Email is required");
+        return;
+    }
+    try {
+        const collection = yield (0, helpers_1.getDbCollection)("vault");
+        yield collection.updateOne({ email: email }, { $set: { pin: pin, pinCreatedAt: new Date() } });
+        res.status(200).send("Pin set successfully");
+    }
+    catch (error) {
+        console.error("Error sending OTP:", error);
+        res.status(500).send("Failed to send OTP");
+    }
+}));
+router.get("/get-certs/:email", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const email = req.params.email;
+    if (!email) {
+        res.status(400).send("Email is required");
+        return;
+    }
+    try {
+        const usercollection = yield (0, helpers_1.getDbCollection)("user");
+        // Find user by email
+        const user = yield usercollection.findOne({ email });
+        let profileCert;
+        if (user) {
+            profileCert = {
+                licenseType: user === null || user === void 0 ? void 0 : user.licenseType,
+                licensedState: user.licensedState,
+                licenseNumber: user.licenseNumber,
+                primarySpeciality: user.primarySpeciality,
+                licenseCertificateUrl: user.licenseCertificateUrl[0],
+            };
+        }
+        const collection = yield (0, helpers_1.getDbCollection)("vault");
+        const uname = yield collection.findOne({ email });
+        const vaultsCerts = (uname === null || uname === void 0 ? void 0 : uname.vaultCerts) ? uname === null || uname === void 0 ? void 0 : uname.vaultCerts : [];
+        res.status(200).json({ message: [...vaultsCerts, profileCert] });
+    }
+    catch (error) {
+        console.error("Error fetching Certificates:", error);
+        res.status(500).send("Failed to send OTP");
     }
 }));
 // router.post("/api/vault/upload/cert", async (req, res) => {

@@ -15,7 +15,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateOtp = void 0;
 const express_1 = require("express");
 const bcryptjs_1 = __importDefault(require("bcryptjs"));
-const nodemailer_1 = __importDefault(require("nodemailer"));
 const crypto_1 = __importDefault(require("crypto")); // For generating OTP
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const multer_1 = __importDefault(require("multer"));
@@ -23,25 +22,6 @@ const helpers_1 = require("../../lib/helpers");
 const axios_1 = __importDefault(require("axios"));
 const joi_1 = __importDefault(require("joi"));
 const router = (0, express_1.Router)();
-function sendOtp(email, otp) {
-    return __awaiter(this, void 0, void 0, function* () {
-        // Example using Nodemailer for email
-        const transporter = nodemailer_1.default.createTransport({
-            service: "Gmail", // Replace with your email service
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS,
-            },
-        });
-        const mailOptions = {
-            from: process.env.EMAIL_USER,
-            to: email,
-            subject: "Your OTP Code",
-            text: `Your OTP code is: ${otp}`,
-        };
-        yield transporter.sendMail(mailOptions);
-    });
-}
 // Generate a random OTP
 function generateOtp() {
     return crypto_1.default.randomInt(1000, 9999).toString(); // Generates a 4-digit OTP
@@ -148,7 +128,14 @@ router.post("/complete-name", (req, res) => __awaiter(void 0, void 0, void 0, fu
                 lastName: lastName,
             },
         });
-        res.status(200).json({ message: "Profile updated successfully." });
+        const token = jsonwebtoken_1.default.sign({ _id: user._id }, process.env.TOKEN_SECRET, {
+            expiresIn: "6h", // expires in 6 hours
+        });
+        res.status(200).json({
+            message: {
+                token: token,
+            },
+        });
     }
     catch (error) {
         console.error("Error updating profile:", error);
@@ -157,37 +144,37 @@ router.post("/complete-name", (req, res) => __awaiter(void 0, void 0, void 0, fu
 }));
 const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
 router.post("/complete-profile", upload.single("licenseCertificate"), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { email, npiNumber, primarySpeciality, licensedState, licenseNumber, expirationDate, deaNumber, } = req.body;
-    let licenseCertificateUrl = "";
-    if (req.file) {
-        console.log(req.file);
-        // Upload file to Azure Blob Storage
-        licenseCertificateUrl = yield (0, helpers_1.uploadToBlobStorage)(req.file.buffer, `${req.file.originalname}-${Date.now()}`, "licenses");
-    }
-    const collection = yield (0, helpers_1.getDbCollection)("user");
-    // Find user by email
-    const user = yield collection.findOne({ email });
-    if (!user) {
-        return res.status(404).json({ message: "User not found." });
-    }
-    yield collection.updateOne({ email }, {
-        $set: {
-            npiNumber: npiNumber,
-            primarySpeciality: primarySpeciality,
-            licensedState: licensedState,
-            licenseNumber: licenseNumber,
-            expirationDate: expirationDate,
-            deaNumber: deaNumber,
-            licenseCertificateUrl: [
-                ...(user.licenseCertificateUrl ? user.licenseCertificateUrl : []),
-                licenseCertificateUrl,
-            ],
-        },
-    });
-    res
-        .status(201)
-        .json({ message: "Profile created successfully", profile: user });
     try {
+        const { email, npiNumber, primarySpeciality, licensedState, licenseNumber, expirationDate, deaNumber, } = req.body;
+        let licenseCertificateUrl = "";
+        if (req.file) {
+            console.log(req.file);
+            // Upload file to Azure Blob Storage
+            licenseCertificateUrl = yield (0, helpers_1.uploadToBlobStorage)(req.file.buffer, `${req.file.originalname}-${Date.now()}`, "licenses");
+        }
+        const collection = yield (0, helpers_1.getDbCollection)("user");
+        // Find user by email
+        const user = yield collection.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: "User not found." });
+        }
+        yield collection.updateOne({ email }, {
+            $set: {
+                npiNumber: npiNumber,
+                primarySpeciality: primarySpeciality,
+                licensedState: licensedState,
+                licenseNumber: licenseNumber,
+                expirationDate: expirationDate,
+                deaNumber: deaNumber,
+                licenseCertificateUrl: [
+                    ...(user.licenseCertificateUrl ? user.licenseCertificateUrl : []),
+                    licenseCertificateUrl,
+                ],
+            },
+        });
+        res
+            .status(201)
+            .json({ message: "Profile created successfully", profile: user });
     }
     catch (error) {
         res
@@ -200,18 +187,6 @@ router.get("/npi/:number", (req, res) => __awaiter(void 0, void 0, void 0, funct
     try {
         const response = yield axios_1.default.get(`https://npiregistry.cms.hhs.gov/api/?number=${npiNumber}&version=2.1`);
         res.json(response.data);
-    }
-    catch (error) {
-        res.status(500).json({ message: "Error fetching NPI data", error });
-    }
-}));
-router.get("/allusers", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const collection = yield (0, helpers_1.getDbCollection)("user");
-    // Find user by email
-    const users = yield collection.find().toArray();
-    console.log({ users });
-    res.status(200).send(users);
-    try {
     }
     catch (error) {
         res.status(500).json({ message: "Error fetching NPI data", error });
@@ -268,42 +243,39 @@ const loginSchema = joi_1.default.object({
 //SIGNIN USER - NEEDS CHANGE
 router.post("/signin", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
-    const { email, password } = req.body;
-    //CHECKING IF EMAIL EXISTS
-    const collection = yield (0, helpers_1.getDbCollection)("user");
-    // Find user by email
-    const user = yield collection.findOne({ email });
-    if (!user) {
-        res.status(400).json({ status: "400", message: 'Email doesn"t exist' });
-        return;
-    }
-    // const validPassword = await bcrypt.compare(
-    //   req.body.password,
-    //   "user.password"
-    // );
-    // if (!validPassword) {
-    //   return res
-    //     .status(400)
-    //     .json({ status: "400", message: "Incorrect Password !!!" });
-    // }
-    //VALIDATION OF USER INPUTS
-    // await loginSchema.validateAsync(req.body);
-    //CREATE TOKEN
-    const token = jsonwebtoken_1.default.sign({ _id: user._id }, process.env.TOKEN_SECRET, {
-        expiresIn: "6h", // expires in 6 hours
-    });
-    res
-        .status(200)
-        .header("auth-token", token)
-        .json({
-        message: {
-            status: "200",
-            token: token,
-            _id: user._id,
-            name: user.firstName,
-        },
-    });
     try {
+        const { email, password } = req.body;
+        //CHECKING IF EMAIL EXISTS
+        const collection = yield (0, helpers_1.getDbCollection)("user");
+        // Find user by email
+        const user = yield collection.findOne({ email });
+        if (!user) {
+            res.status(400).json({ status: "400", message: 'Email doesn"t exist' });
+            return;
+        }
+        const validPassword = yield bcryptjs_1.default.compare(password, user.password);
+        if (!validPassword) {
+            return res
+                .status(400)
+                .json({ status: "400", message: "Incorrect Password !!!" });
+        }
+        //VALIDATION OF USER INPUTS
+        // await loginSchema.validateAsync(req.body);
+        //CREATE TOKEN
+        const token = jsonwebtoken_1.default.sign({ _id: user._id }, process.env.TOKEN_SECRET, {
+            expiresIn: "6h", // expires in 6 hours
+        });
+        res
+            .status(200)
+            .header("auth-token", token)
+            .json({
+            message: {
+                status: "200",
+                token: token,
+                _id: user._id,
+                name: user.firstName,
+            },
+        });
     }
     catch (error) {
         if (error.details) {

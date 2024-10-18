@@ -14,26 +14,6 @@ import Joi from "joi";
 
 const router = Router();
 
-async function sendOtp(email: string, otp: string) {
-  // Example using Nodemailer for email
-  const transporter = nodemailer.createTransport({
-    service: "Gmail", // Replace with your email service
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
-
-  const mailOptions = {
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: "Your OTP Code",
-    text: `Your OTP code is: ${otp}`,
-  };
-
-  await transporter.sendMail(mailOptions);
-}
-
 // Generate a random OTP
 export function generateOtp() {
   return crypto.randomInt(1000, 9999).toString(); // Generates a 4-digit OTP
@@ -174,7 +154,15 @@ router.post("/complete-name", async (req: Request, res: Response) => {
       }
     );
 
-    res.status(200).json({ message: "Profile updated successfully." });
+    const token = jwt.sign({ _id: user._id }, process.env.TOKEN_SECRET!, {
+      expiresIn: "6h", // expires in 6 hours
+    });
+
+    res.status(200).json({
+      message: {
+        token: token,
+      },
+    });
   } catch (error) {
     console.error("Error updating profile:", error);
     res.status(500).json({ message: "Failed to update profile." });
@@ -187,57 +175,57 @@ router.post(
   "/complete-profile",
   upload.single("licenseCertificate"),
   async (req: Request, res: Response) => {
-    const {
-      email,
-      npiNumber,
-      primarySpeciality,
-      licensedState,
-      licenseNumber,
-      expirationDate,
-      deaNumber,
-    } = req.body;
-
-    let licenseCertificateUrl = "";
-    if (req.file) {
-      console.log(req.file);
-      // Upload file to Azure Blob Storage
-      licenseCertificateUrl = await uploadToBlobStorage(
-        req.file.buffer,
-        `${req.file.originalname}-${Date.now()}`,
-        "licenses"
-      );
-    }
-
-    const collection = await getDbCollection("user");
-    // Find user by email
-    const user = await collection.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found." });
-    }
-
-    await collection.updateOne(
-      { email },
-      {
-        $set: {
-          npiNumber: npiNumber,
-          primarySpeciality: primarySpeciality,
-          licensedState: licensedState,
-          licenseNumber: licenseNumber,
-          expirationDate: expirationDate,
-          deaNumber: deaNumber,
-          licenseCertificateUrl: [
-            ...(user.licenseCertificateUrl ? user.licenseCertificateUrl : []),
-            licenseCertificateUrl,
-          ],
-        },
-      }
-    );
-
-    res
-      .status(201)
-      .json({ message: "Profile created successfully", profile: user });
     try {
+      const {
+        email,
+        npiNumber,
+        primarySpeciality,
+        licensedState,
+        licenseNumber,
+        expirationDate,
+        deaNumber,
+      } = req.body;
+
+      let licenseCertificateUrl = "";
+      if (req.file) {
+        console.log(req.file);
+        // Upload file to Azure Blob Storage
+        licenseCertificateUrl = await uploadToBlobStorage(
+          req.file.buffer,
+          `${req.file.originalname}-${Date.now()}`,
+          "licenses"
+        );
+      }
+
+      const collection = await getDbCollection("user");
+      // Find user by email
+      const user = await collection.findOne({ email });
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found." });
+      }
+
+      await collection.updateOne(
+        { email },
+        {
+          $set: {
+            npiNumber: npiNumber,
+            primarySpeciality: primarySpeciality,
+            licensedState: licensedState,
+            licenseNumber: licenseNumber,
+            expirationDate: expirationDate,
+            deaNumber: deaNumber,
+            licenseCertificateUrl: [
+              ...(user.licenseCertificateUrl ? user.licenseCertificateUrl : []),
+              licenseCertificateUrl,
+            ],
+          },
+        }
+      );
+
+      res
+        .status(201)
+        .json({ message: "Profile created successfully", profile: user });
     } catch (error) {
       res
         .status(500)
@@ -253,19 +241,6 @@ router.get("/npi/:number", async (req: Request, res: Response) => {
       `https://npiregistry.cms.hhs.gov/api/?number=${npiNumber}&version=2.1`
     );
     res.json(response.data);
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching NPI data", error });
-  }
-});
-
-router.get("/allusers", async (req: Request, res: Response) => {
-  const collection = await getDbCollection("user");
-  // Find user by email
-  const users = await collection.find().toArray();
-  console.log({ users });
-
-  res.status(200).send(users);
-  try {
   } catch (error) {
     res.status(500).json({ message: "Error fetching NPI data", error });
   }
@@ -328,48 +303,45 @@ const loginSchema = Joi.object({
 
 //SIGNIN USER - NEEDS CHANGE
 router.post("/signin", async (req: Request, res: Response) => {
-  const { email, password } = req.body;
-  //CHECKING IF EMAIL EXISTS
-  const collection = await getDbCollection("user");
-  // Find user by email
-  const user = await collection.findOne({ email });
-
-  if (!user) {
-    res.status(400).json({ status: "400", message: 'Email doesn"t exist' });
-    return;
-  }
-
-  // const validPassword = await bcrypt.compare(
-  //   req.body.password,
-  //   "user.password"
-  // );
-
-  // if (!validPassword) {
-  //   return res
-  //     .status(400)
-  //     .json({ status: "400", message: "Incorrect Password !!!" });
-  // }
-
-  //VALIDATION OF USER INPUTS
-  // await loginSchema.validateAsync(req.body);
-
-  //CREATE TOKEN
-  const token = jwt.sign({ _id: user._id }, process.env.TOKEN_SECRET!, {
-    expiresIn: "6h", // expires in 6 hours
-  });
-
-  res
-    .status(200)
-    .header("auth-token", token)
-    .json({
-      message: {
-        status: "200",
-        token: token,
-        _id: user._id,
-        name: user.firstName,
-      },
-    });
   try {
+    const { email, password } = req.body;
+    //CHECKING IF EMAIL EXISTS
+    const collection = await getDbCollection("user");
+    // Find user by email
+    const user = await collection.findOne({ email });
+
+    if (!user) {
+      res.status(400).json({ status: "400", message: 'Email doesn"t exist' });
+      return;
+    }
+
+    const validPassword = await bcrypt.compare(password, user.password);
+
+    if (!validPassword) {
+      return res
+        .status(400)
+        .json({ status: "400", message: "Incorrect Password !!!" });
+    }
+
+    //VALIDATION OF USER INPUTS
+    // await loginSchema.validateAsync(req.body);
+
+    //CREATE TOKEN
+    const token = jwt.sign({ _id: user._id }, process.env.TOKEN_SECRET!, {
+      expiresIn: "6h", // expires in 6 hours
+    });
+
+    res
+      .status(200)
+      .header("auth-token", token)
+      .json({
+        message: {
+          status: "200",
+          token: token,
+          _id: user._id,
+          name: user.firstName,
+        },
+      });
   } catch (error: any) {
     if (error.details) {
       return res

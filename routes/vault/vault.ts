@@ -55,7 +55,12 @@ router.post("/verify-otp", async (req: Request, res: Response) => {
       // If valid, clear the OTP from the database or mark as verified
       await collection.updateOne(
         { email },
-        { $unset: { otp: "" }, $set: { otpVerified: true } }
+        {
+          $unset: { otp: "" },
+          $set: {
+            otpVerified: true,
+          },
+        }
       );
 
       return res.status(200).json("OTP verified successfully");
@@ -65,6 +70,66 @@ router.post("/verify-otp", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error verifying OTP:", error);
     res.status(500).send("Failed to verify OTP");
+  }
+});
+
+router.post("/save-pin", async (req: Request, res: Response) => {
+  const { email, pin } = req.body;
+
+  if (!email) {
+    res.status(400).send("Email is required");
+    return;
+  }
+
+  try {
+    const collection = await getDbCollection("vault");
+
+    await collection.updateOne(
+      { email: email },
+      { $set: { pin: pin, pinCreatedAt: new Date() } }
+    );
+
+    res.status(200).send("Pin set successfully");
+  } catch (error) {
+    console.error("Error sending OTP:", error);
+    res.status(500).send("Failed to send OTP");
+  }
+});
+
+router.get("/get-certs/:email", async (req: Request, res: Response) => {
+  const email = req.params.email;
+
+  if (!email) {
+    res.status(400).send("Email is required");
+    return;
+  }
+
+  try {
+    const usercollection = await getDbCollection("user");
+    // Find user by email
+    const user = await usercollection.findOne({ email });
+    let profileCert;
+
+    if (user) {
+      profileCert = {
+        licenseType: user?.licenseType,
+        licensedState: user.licensedState,
+        licenseNumber: user.licenseNumber,
+        primarySpeciality: user.primarySpeciality,
+        licenseCertificateUrl: user.licenseCertificateUrl[0],
+      };
+    }
+
+    const collection = await getDbCollection("vault");
+
+    const uname = await collection.findOne({ email });
+
+    const vaultsCerts = uname?.vaultCerts ? uname?.vaultCerts : [];
+
+    res.status(200).json({ message: [...vaultsCerts, profileCert] });
+  } catch (error) {
+    console.error("Error fetching Certificates:", error);
+    res.status(500).send("Failed to send OTP");
   }
 });
 

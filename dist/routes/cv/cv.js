@@ -1,4 +1,54 @@
 "use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const multer_1 = __importDefault(require("multer"));
+const helpers_1 = require("../../lib/helpers");
+const router = (0, express_1.Router)();
+const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
+router.post("/cv-upload", upload.single("cv"), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { email } = req.body;
+        let cvUrl = "";
+        if (req.file) {
+            console.log(req.file);
+            // Upload file to Azure Blob Storage
+            cvUrl = yield (0, helpers_1.uploadToBlobStorage)(req.file.buffer, `${req.file.originalname}-${Date.now()}`, "cv-docs");
+        }
+        const collection = yield (0, helpers_1.getDbCollection)("cv");
+        // Find user by email
+        const user = yield collection.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ message: "User not found." });
+        }
+        yield collection.updateOne({ email }, {
+            $set: {
+                cvDoc: cvUrl,
+            },
+        }, { upsert: true } // Create a new document if one does not exist
+        );
+        res
+            .status(201)
+            .json({ message: "CV uploaded successfully", profile: user });
+    }
+    catch (error) {
+        res
+            .status(500)
+            .json({ message: "Error while completing form", error: error });
+    }
+}));
+exports.default = router;
 // import { Router } from "express";
 // const router = Router();
 // router.post("/api/cv/upload", async (req, res) => {
