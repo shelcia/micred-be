@@ -239,7 +239,9 @@ router.post(
         .status(201)
         .json({ message: "Profile created successfully", profile: user });
     } catch (error) {
-      res.status(500).json({ message: "Error" });
+      res
+        .status(500)
+        .json({ message: "Error while completing form", error: error });
     }
   }
 );
