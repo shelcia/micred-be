@@ -4,3 +4,8 @@ export interface IUser {
   password: string;
   date?: Date;
 }
+
+export interface IError {
+  message?: string;
+  status?: string | number;
+}

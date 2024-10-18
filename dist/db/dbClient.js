@@ -17,13 +17,13 @@ const databaseId = String(process.env.DB_ID);
 const options = {
     endpoint: endpoint,
     key: key,
-    userAgentSuffix: 'Micred cosmmo db'
+    userAgentSuffix: "Micred cosmmo db",
 };
 const client = new cosmos_1.CosmosClient(options);
 function getContainer(databaseId, containerId) {
     return __awaiter(this, void 0, void 0, function* () {
         const dbResponse = yield client.databases.createIfNotExists({
-            id: databaseId
+            id: databaseId,
         });
         const db = dbResponse.database;
         return yield db.containers.createIfNotExists({ id: containerId });
