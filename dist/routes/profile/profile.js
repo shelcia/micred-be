@@ -23,6 +23,7 @@ router.get("/:email", (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 firstName: user.firstName,
                 primarySpeciality: user.primarySpeciality,
                 licenseCertificateUrl: user.licenseCertificateUrl[0],
+                npiNumber: user.npiNumber,
             };
             res.status(200).json({ message: profile });
         }

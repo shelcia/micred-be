@@ -14,6 +14,7 @@ router.get("/:email", async (req, res) => {
         firstName: user.firstName,
         primarySpeciality: user.primarySpeciality,
         licenseCertificateUrl: user.licenseCertificateUrl[0],
+        npiNumber: user.npiNumber,
       };
       res.status(200).json({ message: profile });
     } else {
