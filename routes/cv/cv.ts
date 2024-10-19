@@ -1,57 +1,124 @@
 import { Router, Request, Response } from "express";
 import multer from "multer";
 import { getDbCollection, uploadToBlobStorage } from "../../lib/helpers";
+import { BlobSASPermissions, BlobServiceClient } from "@azure/storage-blob";
+import {
+  AzureKeyCredential,
+  DocumentAnalysisClient,
+} from "@azure/ai-form-recognizer";
 
 const router = Router();
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+const blobServiceClient = BlobServiceClient.fromConnectionString(
+  process.env.AZURE_STORAGE_CONNECTION_STRING!
+);
+
+const formRecognizerClient = new DocumentAnalysisClient(
+  process.env.FORM_RECOGNIZER_ENDPOINT!,
+  new AzureKeyCredential(process.env.FORM_RECOGNIZER_KEY!)
+);
+
+// Refined regex patterns for CV sections
+const sectionPatterns = {
+  "Personal details": /personal\s*details:?/i,
+  "Clinical experience": /clinical\s*experience:?/i,
+  "Residency fellowship training": /residency\s*fellowship\s*training:?/i,
+  Education: /education:?/i,
+  "Board certification": /board\s*certification:?/i,
+  Publications: /publications:?/i,
+  "Research Experience": /research\s*experience:?/i,
+  "Professional Membership": /professional\s*membership:?/i,
+  "Languages spoken": /languages\s*spoken:?/i,
+  "Awards and Honors": /awards\s*and\s*honors:?/i,
+  "Interest & Hobbies": /interest\s*&\s*hobbies:?/i,
+  References: /references:?/i,
+};
+
+// Improved section extraction using flexible regex patterns
+const extractSections = (text: string) => {
+  const extractedSections: any = {};
+
+  Object.entries(sectionPatterns).forEach(([section, pattern]) => {
+    const regex = new RegExp(
+      `${pattern.source}\\s*(.*?)(?=${Object.values(sectionPatterns)
+        .map((p) => p.source)
+        .join("|")}|$)`,
+      "gis"
+    );
+    const match = regex.exec(text);
+    if (match) {
+      extractedSections[section] = match[1].trim();
+    }
+  });
+
+  return extractedSections;
+};
+
 router.post(
   "/cv-upload",
-  upload.single("cv"),
+  upload.single("cvDocument"),
   async (req: Request, res: Response) => {
     try {
       const { email } = req.body;
-
-      let cvUrl = "";
-      if (req.file) {
-        console.log(req.file);
-        // Upload file to Azure Blob Storage
-        cvUrl = await uploadToBlobStorage(
-          req.file.buffer,
-          `${req.file.originalname}-${Date.now()}`,
-          "cv-docs"
-        );
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const collection = await getDbCollection("cv");
-      // Find user by email
-      const user = await collection.findOne({ email });
-
-      if (!user) {
-        return res.status(404).json({ message: "User not found." });
+      // Validate file type
+      if (
+        ![
+          "application/pdf",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ].includes(req.file.mimetype)
+      ) {
+        return res.status(400).json({ message: "Unsupported file type" });
       }
 
-      await collection.updateOne(
-        { email },
-        {
-          $set: {
-            cvDoc: cvUrl,
-          },
-        },
-        { upsert: true } // Create a new document if one does not exist
+      let cvUrl = await uploadToBlobStorage(
+        req.file.buffer,
+        `${req.file.originalname}-${Date.now()}`,
+        "cv-docs"
       );
 
+      const collection = await getDbCollection("cv");
+
+      await collection.updateOne(
+        { email: email },
+        { $set: { cvDocumentUrl: cvUrl, cvCreatedAt: new Date() } },
+        { upsert: true }
+      );
+
+      // Analyze document using custom model or prebuilt model
+      const poller = await formRecognizerClient.beginAnalyzeDocumentFromUrl(
+        "prebuilt-document", // Replace with your custom model ID
+        cvUrl
+      );
+      const result = await poller.pollUntilDone();
+
+      const extractedText = result.content || "";
+      const extractedData = extractSections(extractedText);
+
       res
-        .status(201)
-        .json({ message: "CV uploaded successfully", profile: user });
+        .status(200)
+        .json({ message: "CV successfully processed", data: extractedData });
     } catch (error) {
-      res
-        .status(500)
-        .json({ message: "Error while completing form", error: error });
+      res.status(500).json({ message: "Error while processing CV", error });
     }
   }
 );
+
+router.get("/:email", async (req: Request, res: Response) => {
+  try {
+    const collection = await getDbCollection("cv");
+
+    const cvs = await collection.find({ email: req.params.email }).toArray();
+    res.status(200).json({ message: cvs });
+  } catch (error) {
+    res.status(500).json({ message: "Error while fetching CV", error });
+  }
+});
 
 export default router;
 
