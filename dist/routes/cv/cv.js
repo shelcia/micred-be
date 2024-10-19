@@ -15,37 +15,79 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const multer_1 = __importDefault(require("multer"));
 const helpers_1 = require("../../lib/helpers");
+const storage_blob_1 = require("@azure/storage-blob");
+const ai_form_recognizer_1 = require("@azure/ai-form-recognizer");
 const router = (0, express_1.Router)();
 const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
-router.post("/cv-upload", upload.single("cv"), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+const blobServiceClient = storage_blob_1.BlobServiceClient.fromConnectionString(process.env.AZURE_STORAGE_CONNECTION_STRING);
+const formRecognizerClient = new ai_form_recognizer_1.DocumentAnalysisClient(process.env.FORM_RECOGNIZER_ENDPOINT, new ai_form_recognizer_1.AzureKeyCredential(process.env.FORM_RECOGNIZER_KEY));
+// Refined regex patterns for CV sections
+const sectionPatterns = {
+    "Personal details": /personal\s*details:?/i,
+    "Clinical experience": /clinical\s*experience:?/i,
+    "Residency fellowship training": /residency\s*fellowship\s*training:?/i,
+    Education: /education:?/i,
+    "Board certification": /board\s*certification:?/i,
+    Publications: /publications:?/i,
+    "Research Experience": /research\s*experience:?/i,
+    "Professional Membership": /professional\s*membership:?/i,
+    "Languages spoken": /languages\s*spoken:?/i,
+    "Awards and Honors": /awards\s*and\s*honors:?/i,
+    "Interest & Hobbies": /interest\s*&\s*hobbies:?/i,
+    References: /references:?/i,
+};
+// Improved section extraction using flexible regex patterns
+const extractSections = (text) => {
+    const extractedSections = {};
+    Object.entries(sectionPatterns).forEach(([section, pattern]) => {
+        const regex = new RegExp(`${pattern.source}\\s*(.*?)(?=${Object.values(sectionPatterns)
+            .map((p) => p.source)
+            .join("|")}|$)`, "gis");
+        const match = regex.exec(text);
+        if (match) {
+            extractedSections[section] = match[1].trim();
+        }
+    });
+    return extractedSections;
+};
+router.post("/cv-upload", upload.single("cvDocument"), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { email } = req.body;
-        let cvUrl = "";
-        if (req.file) {
-            console.log(req.file);
-            // Upload file to Azure Blob Storage
-            cvUrl = yield (0, helpers_1.uploadToBlobStorage)(req.file.buffer, `${req.file.originalname}-${Date.now()}`, "cv-docs");
+        if (!req.file) {
+            return res.status(400).json({ message: "No file uploaded" });
         }
+        // Validate file type
+        if (![
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ].includes(req.file.mimetype)) {
+            return res.status(400).json({ message: "Unsupported file type" });
+        }
+        let cvUrl = yield (0, helpers_1.uploadToBlobStorage)(req.file.buffer, `${req.file.originalname}-${Date.now()}`, "cv-docs");
         const collection = yield (0, helpers_1.getDbCollection)("cv");
-        // Find user by email
-        const user = yield collection.findOne({ email });
-        if (!user) {
-            return res.status(404).json({ message: "User not found." });
-        }
-        yield collection.updateOne({ email }, {
-            $set: {
-                cvDoc: cvUrl,
-            },
-        }, { upsert: true } // Create a new document if one does not exist
-        );
+        yield collection.updateOne({ email: email }, { $set: { cvDocumentUrl: cvUrl, cvCreatedAt: new Date() } }, { upsert: true });
+        // Analyze document using custom model or prebuilt model
+        const poller = yield formRecognizerClient.beginAnalyzeDocumentFromUrl("prebuilt-document", // Replace with your custom model ID
+        cvUrl);
+        const result = yield poller.pollUntilDone();
+        const extractedText = result.content || "";
+        const extractedData = extractSections(extractedText);
         res
-            .status(201)
-            .json({ message: "CV uploaded successfully", profile: user });
+            .status(200)
+            .json({ message: "CV successfully processed", data: extractedData });
     }
     catch (error) {
-        res
-            .status(500)
-            .json({ message: "Error while completing form", error: error });
+        res.status(500).json({ message: "Error while processing CV", error });
+    }
+}));
+router.get("/:email", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const collection = yield (0, helpers_1.getDbCollection)("cv");
+        const cvs = yield collection.find({ email: req.params.email }).toArray();
+        res.status(200).json({ message: cvs });
+    }
+    catch (error) {
+        res.status(500).json({ message: "Error while fetching CV", error });
     }
 }));
 exports.default = router;
