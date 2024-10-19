@@ -6,7 +6,9 @@
     "start": "node index.js",
     "dev": "nodemon --exec ts-node index.ts",
     "build": "tsc -p . --outDir dist",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "push-deploy": "npm run build && git add -A && git commit -m 'Profile API fixes' && git push",
+    "deploy": "git checkout main && git pull origin dev && git push && git checkout SCRUM-20"
   },
   "author": "",
   "license": "MIT",
