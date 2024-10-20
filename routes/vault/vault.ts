@@ -129,11 +129,18 @@ router.get("/get-certs/:email", async (req: Request, res: Response) => {
 
     const collection = await getDbCollection("vault");
 
-    const uname = await collection.findOne({ email });
+    const vaultCerts = await collection.find({ email }).toArray();
+    let licenses: any[] = [];
 
-    const vaultsCerts = uname?.vaultCerts ? uname?.vaultCerts : [];
+    vaultCerts.forEach((doc) => {
+      if (doc.licenses && doc.licenses.length > 0) {
+        licenses = licenses.concat(doc.licenses); // Collect licenses
+      }
+    });
 
-    res.status(200).json({ message: [...vaultsCerts, profileCert] });
+    // const vaultsCerts = uname?.vaultCerts ? uname?.vaultCerts : [];
+
+    res.status(200).json({ message: [...licenses, profileCert] });
   } catch (error) {
     console.error("Error fetching Certificates:", error);
     res.status(500).send("Failed to send OTP");
@@ -153,7 +160,6 @@ router.post(
         expiryDate,
         licenseNumber,
         empType,
-        empNumber,
         empAddress,
         empPhNumber,
       } = req.body;
@@ -179,22 +185,28 @@ router.post(
 
       const collection = await getDbCollection("vault");
 
+      const user = await collection.findOne({ email: email });
+
       await collection.updateOne(
         { email: email },
         {
           $set: {
-            licenseCertificateUrl: docUrl,
-            licenseCertificateAt: new Date(),
-            licenseType: licenseType,
-            primarySpeciality: primarySpeciality,
-            licensedState: licensedState,
-            expiryDate: expiryDate,
-            licenseNumber: licenseNumber,
-            empType: empType,
-            empNumber: empNumber,
-            empAddress: empAddress,
-            empPhNumber: empPhNumber,
-            isVerified: false,
+            licenses: [
+              ...(user?.licenses ? user.licenses : []),
+              {
+                licenseCertificateUrl: docUrl,
+                licenseCertificateAt: new Date(),
+                licenseType: licenseType,
+                primarySpeciality: primarySpeciality,
+                licensedState: licensedState,
+                expiryDate: expiryDate,
+                licenseNumber: licenseNumber,
+                empType: empType,
+                empAddress: empAddress,
+                empPhNumber: empPhNumber,
+                isVerified: false,
+              },
+            ],
           },
         },
         { upsert: true }

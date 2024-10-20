@@ -108,9 +108,15 @@ router.get("/get-certs/:email", (req, res) => __awaiter(void 0, void 0, void 0, 
             };
         }
         const collection = yield (0, helpers_1.getDbCollection)("vault");
-        const uname = yield collection.findOne({ email });
-        const vaultsCerts = (uname === null || uname === void 0 ? void 0 : uname.vaultCerts) ? uname === null || uname === void 0 ? void 0 : uname.vaultCerts : [];
-        res.status(200).json({ message: [...vaultsCerts, profileCert] });
+        const vaultCerts = yield collection.find({ email }).toArray();
+        let licenses = [];
+        vaultCerts.forEach((doc) => {
+            if (doc.licenses && doc.licenses.length > 0) {
+                licenses = licenses.concat(doc.licenses); // Collect licenses
+            }
+        });
+        // const vaultsCerts = uname?.vaultCerts ? uname?.vaultCerts : [];
+        res.status(200).json({ message: [...licenses, profileCert] });
     }
     catch (error) {
         console.error("Error fetching Certificates:", error);
@@ -119,7 +125,7 @@ router.get("/get-certs/:email", (req, res) => __awaiter(void 0, void 0, void 0, 
 }));
 router.post("/add-certs", upload.single("licenseCertificate"), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { email, licenseType, primarySpeciality, licensedState, expiryDate, licenseNumber, empType, empNumber, empAddress, empPhNumber, } = req.body;
+        const { email, licenseType, primarySpeciality, licensedState, expiryDate, licenseNumber, empType, empAddress, empPhNumber, } = req.body;
         if (!req.file) {
             return res.status(400).json({ message: "No file uploaded" });
         }
@@ -132,20 +138,25 @@ router.post("/add-certs", upload.single("licenseCertificate"), (req, res) => __a
         }
         let docUrl = yield (0, helpers_1.uploadToBlobStorage)(req.file.buffer, `${req.file.originalname}-${Date.now()}`, "licenses");
         const collection = yield (0, helpers_1.getDbCollection)("vault");
+        const user = yield collection.findOne({ email: email });
         yield collection.updateOne({ email: email }, {
             $set: {
-                licenseCertificateUrl: docUrl,
-                licenseCertificateAt: new Date(),
-                licenseType: licenseType,
-                primarySpeciality: primarySpeciality,
-                licensedState: licensedState,
-                expiryDate: expiryDate,
-                licenseNumber: licenseNumber,
-                empType: empType,
-                empNumber: empNumber,
-                empAddress: empAddress,
-                empPhNumber: empPhNumber,
-                isVerified: false,
+                licenses: [
+                    ...((user === null || user === void 0 ? void 0 : user.licenses) ? user.licenses : []),
+                    {
+                        licenseCertificateUrl: docUrl,
+                        licenseCertificateAt: new Date(),
+                        licenseType: licenseType,
+                        primarySpeciality: primarySpeciality,
+                        licensedState: licensedState,
+                        expiryDate: expiryDate,
+                        licenseNumber: licenseNumber,
+                        empType: empType,
+                        empAddress: empAddress,
+                        empPhNumber: empPhNumber,
+                        isVerified: false,
+                    },
+                ],
             },
         }, { upsert: true });
         res.status(200).json({ message: "Successfully Uploaded Certificates" });
