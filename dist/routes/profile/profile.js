@@ -21,6 +21,9 @@ router.get("/:email", (req, res) => __awaiter(void 0, void 0, void 0, function* 
         if (user) {
             const profile = {
                 firstName: user.firstName,
+                lastName: user.lastName,
+                middleName: user.middleName,
+                profileUrl: user.profileUrl,
                 primarySpeciality: user.primarySpeciality,
                 licenseCertificateUrl: user.licenseCertificateUrl[0],
                 licensedState: user.licensedState,
