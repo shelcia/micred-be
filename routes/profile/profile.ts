@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { getDbCollection, uploadToBlobStorage } from "../../lib/helpers";
+import multer from "multer";
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.get("/:email", async (req, res) => {
   // const { email } = req.body;
@@ -32,7 +34,7 @@ router.get("/:email", async (req, res) => {
   }
 });
 
-router.post("/profile-image", async (req, res) => {
+router.post("/profile-image", upload.single("profilePic"), async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -79,57 +81,61 @@ router.post("/profile-image", async (req, res) => {
   }
 });
 
-router.post("/progress", async (req, res) => {
-  try {
-    const {
-      email,
-      licenseNumber,
-      progressCertificateName,
-      issueDate,
-      progressCertificateHours,
-    } = req.body;
+router.post(
+  "/progress",
+  upload.single("licenseCertificate"),
+  async (req, res) => {
+    try {
+      const {
+        email,
+        licenseNumber,
+        progressCertificateName,
+        issueDate,
+        progressCertificateHours,
+      } = req.body;
 
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
 
-    // Validate file type
-    if (
-      ![
-        "application/pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      ].includes(req.file.mimetype)
-    ) {
-      return res.status(400).json({ message: "Unsupported file type" });
-    }
+      // Validate file type
+      if (
+        ![
+          "application/pdf",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ].includes(req.file.mimetype)
+      ) {
+        return res.status(400).json({ message: "Unsupported file type" });
+      }
 
-    let docUrl = await uploadToBlobStorage(
-      req.file.buffer,
-      `${req.file.originalname}-${Date.now()}`,
-      "licenses"
-    );
+      let docUrl = await uploadToBlobStorage(
+        req.file.buffer,
+        `${req.file.originalname}-${Date.now()}`,
+        "licenses"
+      );
 
-    const collection = await getDbCollection("progress");
+      const collection = await getDbCollection("progress");
 
-    await collection.updateOne(
-      { email: email },
-      {
-        $set: {
-          licenseNumber: licenseNumber,
-          progressCertificateName: progressCertificateName,
-          progressCertificateUrl: docUrl,
-          progressCertificateAt: new Date(),
-          issueDate: issueDate,
-          progressCertificateHours: parseInt(progressCertificateHours),
-          isVerified: false,
+      await collection.updateOne(
+        { email: email },
+        {
+          $set: {
+            licenseNumber: licenseNumber,
+            progressCertificateName: progressCertificateName,
+            progressCertificateUrl: docUrl,
+            progressCertificateAt: new Date(),
+            issueDate: issueDate,
+            progressCertificateHours: parseInt(progressCertificateHours),
+            isVerified: false,
+          },
         },
-      },
-      { upsert: true }
-    );
-  } catch (error) {
-    res.status(500).json({ error: "Error" });
+        { upsert: true }
+      );
+    } catch (error) {
+      res.status(500).json({ error: "Error" });
+    }
   }
-});
+);
 
 router.get("/progress/:licenseNumber", async (req, res) => {
   try {

@@ -8,10 +8,15 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const helpers_1 = require("../../lib/helpers");
+const multer_1 = __importDefault(require("multer"));
 const router = (0, express_1.Router)();
+const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
 router.get("/:email", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     // const { email } = req.body;
     try {
@@ -42,7 +47,7 @@ router.get("/:email", (req, res) => __awaiter(void 0, void 0, void 0, function* 
         res.status(500).json({ error: "Error" });
     }
 }));
-router.post("/profile-image", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.post("/profile-image", upload.single("profilePic"), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { email } = req.body;
         if (!req.file) {
@@ -73,7 +78,7 @@ router.post("/profile-image", (req, res) => __awaiter(void 0, void 0, void 0, fu
         res.status(500).json({ error: "Error" });
     }
 }));
-router.post("/progress", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.post("/progress", upload.single("licenseCertificate"), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { email, licenseNumber, progressCertificateName, issueDate, progressCertificateHours, } = req.body;
         if (!req.file) {
