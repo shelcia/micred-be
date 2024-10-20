@@ -39,6 +39,51 @@ router.get("/:email", (req, res) => __awaiter(void 0, void 0, void 0, function* 
         res.status(500).json({ error: "Error" });
     }
 }));
+router.post("/progress", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { email, licenseNumber, progressCertificateName, issueDate, progressCertificateHours, } = req.body;
+        if (!req.file) {
+            return res.status(400).json({ message: "No file uploaded" });
+        }
+        // Validate file type
+        if (![
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ].includes(req.file.mimetype)) {
+            return res.status(400).json({ message: "Unsupported file type" });
+        }
+        let docUrl = yield (0, helpers_1.uploadToBlobStorage)(req.file.buffer, `${req.file.originalname}-${Date.now()}`, "licenses");
+        const collection = yield (0, helpers_1.getDbCollection)("progress");
+        yield collection.updateOne({ email: email }, {
+            $set: {
+                licenseNumber: licenseNumber,
+                progressCertificateName: progressCertificateName,
+                progressCertificateUrl: docUrl,
+                progressCertificateAt: new Date(),
+                issueDate: issueDate,
+                progressCertificateHours: parseInt(progressCertificateHours),
+                isVerified: false,
+            },
+        }, { upsert: true });
+    }
+    catch (error) {
+        res.status(500).json({ error: "Error" });
+    }
+}));
+router.get("/progress/:licenseNumber", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const collection = yield (0, helpers_1.getDbCollection)("progress");
+        const progresses = yield collection
+            .find({
+            licenseNumber: req.params.licenseNumber,
+        })
+            .toArray();
+        res.status(404).json({ message: progresses });
+    }
+    catch (error) {
+        res.status(500).json({ error: "Error" });
+    }
+}));
 // router.post("/api/profile/create", async (req, res) => {
 //   const client = new CosmosClient({
 //     endpoint: process.env.COSMOS_DB_ENDPOINT,
