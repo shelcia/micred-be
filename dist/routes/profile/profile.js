@@ -42,6 +42,37 @@ router.get("/:email", (req, res) => __awaiter(void 0, void 0, void 0, function* 
         res.status(500).json({ error: "Error" });
     }
 }));
+router.post("/profile-image", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { email } = req.body;
+        if (!req.file) {
+            res.status(400).json({ message: "No file uploaded" });
+            return;
+        }
+        const collection = yield (0, helpers_1.getDbCollection)("user");
+        const user = yield collection.findOne({ email });
+        if (!user) {
+            res.status(400).json({ message: "No user found" });
+            return;
+        }
+        // Validate file type
+        if (![
+            "image/png", // PNG
+            "image/jpeg", // JPG and JPEG
+        ].includes(req.file.mimetype)) {
+            return res.status(400).json({ message: "Unsupported file type" });
+        }
+        let imageUrl = yield (0, helpers_1.uploadToBlobStorage)(req.file.buffer, `${req.file.originalname}-${Date.now()}`, "profile");
+        yield collection.updateOne({ email: email }, {
+            $set: {
+                profileUrl: imageUrl,
+            },
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: "Error" });
+    }
+}));
 router.post("/progress", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { email, licenseNumber, progressCertificateName, issueDate, progressCertificateHours, } = req.body;

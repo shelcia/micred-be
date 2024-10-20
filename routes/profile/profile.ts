@@ -32,6 +32,53 @@ router.get("/:email", async (req, res) => {
   }
 });
 
+router.post("/profile-image", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!req.file) {
+      res.status(400).json({ message: "No file uploaded" });
+      return;
+    }
+
+    const collection = await getDbCollection("user");
+
+    const user = await collection.findOne({ email });
+
+    if (!user) {
+      res.status(400).json({ message: "No user found" });
+      return;
+    }
+
+    // Validate file type
+    if (
+      ![
+        "image/png", // PNG
+        "image/jpeg", // JPG and JPEG
+      ].includes(req.file.mimetype)
+    ) {
+      return res.status(400).json({ message: "Unsupported file type" });
+    }
+
+    let imageUrl = await uploadToBlobStorage(
+      req.file.buffer,
+      `${req.file.originalname}-${Date.now()}`,
+      "profile"
+    );
+
+    await collection.updateOne(
+      { email: email },
+      {
+        $set: {
+          profileUrl: imageUrl,
+        },
+      }
+    );
+  } catch (error) {
+    res.status(500).json({ error: "Error" });
+  }
+});
+
 router.post("/progress", async (req, res) => {
   try {
     const {
