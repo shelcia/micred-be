@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getDbCollection } from "../../lib/helpers";
+import { getDbCollection, uploadToBlobStorage } from "../../lib/helpers";
 
 const router = Router();
 
@@ -24,6 +24,72 @@ router.get("/:email", async (req, res) => {
     } else {
       res.status(404).json({ message: "User not found" });
     }
+  } catch (error) {
+    res.status(500).json({ error: "Error" });
+  }
+});
+
+router.post("/progress", async (req, res) => {
+  try {
+    const {
+      email,
+      licenseNumber,
+      progressCertificateName,
+      issueDate,
+      progressCertificateHours,
+    } = req.body;
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    // Validate file type
+    if (
+      ![
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ].includes(req.file.mimetype)
+    ) {
+      return res.status(400).json({ message: "Unsupported file type" });
+    }
+
+    let docUrl = await uploadToBlobStorage(
+      req.file.buffer,
+      `${req.file.originalname}-${Date.now()}`,
+      "licenses"
+    );
+
+    const collection = await getDbCollection("progress");
+
+    await collection.updateOne(
+      { email: email },
+      {
+        $set: {
+          licenseNumber: licenseNumber,
+          progressCertificateName: progressCertificateName,
+          progressCertificateUrl: docUrl,
+          progressCertificateAt: new Date(),
+          issueDate: issueDate,
+          progressCertificateHours: parseInt(progressCertificateHours),
+          isVerified: false,
+        },
+      },
+      { upsert: true }
+    );
+  } catch (error) {
+    res.status(500).json({ error: "Error" });
+  }
+});
+
+router.get("/progress/:licenseNumber", async (req, res) => {
+  try {
+    const collection = await getDbCollection("progress");
+    const progresses = await collection
+      .find({
+        licenseNumber: req.params.licenseNumber,
+      })
+      .toArray();
+    res.status(404).json({ message: progresses });
   } catch (error) {
     res.status(500).json({ error: "Error" });
   }
