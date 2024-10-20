@@ -8,11 +8,16 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_1 = require("../auth/auth");
 const helpers_1 = require("../../lib/helpers");
+const multer_1 = __importDefault(require("multer"));
 const router = (0, express_1.Router)();
+const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
 router.post("/send-otp", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { email, _id } = req.body;
     if (!email) {
@@ -112,7 +117,7 @@ router.get("/get-certs/:email", (req, res) => __awaiter(void 0, void 0, void 0, 
         res.status(500).send("Failed to send OTP");
     }
 }));
-router.post("/add-certs", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+router.post("/add-certs", upload.single("licenseCertificate"), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { email, licenseType, primarySpeciality, licensedState, expiryDate, licenseNumber, empType, empNumber, empAddress, empPhNumber, } = req.body;
         if (!req.file) {

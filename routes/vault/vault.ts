@@ -5,8 +5,11 @@ import {
   sendMail,
   uploadToBlobStorage,
 } from "../../lib/helpers";
+import multer from "multer";
 
 const router = Router();
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.post("/send-otp", async (req: Request, res: Response) => {
   const { email, _id } = req.body;
@@ -137,69 +140,73 @@ router.get("/get-certs/:email", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/add-certs", async (req: Request, res: Response) => {
-  try {
-    const {
-      email,
-      licenseType,
-      primarySpeciality,
-      licensedState,
-      expiryDate,
-      licenseNumber,
-      empType,
-      empNumber,
-      empAddress,
-      empPhNumber,
-    } = req.body;
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
+router.post(
+  "/add-certs",
+  upload.single("licenseCertificate"),
+  async (req: Request, res: Response) => {
+    try {
+      const {
+        email,
+        licenseType,
+        primarySpeciality,
+        licensedState,
+        expiryDate,
+        licenseNumber,
+        empType,
+        empNumber,
+        empAddress,
+        empPhNumber,
+      } = req.body;
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
 
-    // Validate file type
-    if (
-      ![
-        "application/pdf",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      ].includes(req.file.mimetype)
-    ) {
-      return res.status(400).json({ message: "Unsupported file type" });
-    }
+      // Validate file type
+      if (
+        ![
+          "application/pdf",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ].includes(req.file.mimetype)
+      ) {
+        return res.status(400).json({ message: "Unsupported file type" });
+      }
 
-    let docUrl = await uploadToBlobStorage(
-      req.file.buffer,
-      `${req.file.originalname}-${Date.now()}`,
-      "licenses"
-    );
+      let docUrl = await uploadToBlobStorage(
+        req.file.buffer,
+        `${req.file.originalname}-${Date.now()}`,
+        "licenses"
+      );
 
-    const collection = await getDbCollection("vault");
+      const collection = await getDbCollection("vault");
 
-    await collection.updateOne(
-      { email: email },
-      {
-        $set: {
-          licenseCertificateUrl: docUrl,
-          licenseCertificateAt: new Date(),
-          licenseType: licenseType,
-          primarySpeciality: primarySpeciality,
-          licensedState: licensedState,
-          expiryDate: expiryDate,
-          licenseNumber: licenseNumber,
-          empType: empType,
-          empNumber: empNumber,
-          empAddress: empAddress,
-          empPhNumber: empPhNumber,
-          isVerified: false,
+      await collection.updateOne(
+        { email: email },
+        {
+          $set: {
+            licenseCertificateUrl: docUrl,
+            licenseCertificateAt: new Date(),
+            licenseType: licenseType,
+            primarySpeciality: primarySpeciality,
+            licensedState: licensedState,
+            expiryDate: expiryDate,
+            licenseNumber: licenseNumber,
+            empType: empType,
+            empNumber: empNumber,
+            empAddress: empAddress,
+            empPhNumber: empPhNumber,
+            isVerified: false,
+          },
         },
-      },
-      { upsert: true }
-    );
+        { upsert: true }
+      );
 
-    res.status(200).json({ message: "Successfully Uploaded Certificates" });
-  } catch (error) {
-    console.error("Error fetching Certificates:", error);
-    res.status(500).send("Failed to send OTP");
+      res.status(200).json({ message: "Successfully Uploaded Certificates" });
+    } catch (error) {
+      console.error("Error fetching Certificates:", error);
+      res.status(500).send("Failed to send OTP");
+    }
   }
-});
+);
 
 // router.post("/api/vault/upload/cert", async (req, res) => {
 //   const blobServiceClient = BlobServiceClient.fromConnectionString(
