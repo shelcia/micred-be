@@ -37,7 +37,17 @@ router.post("/profile-image", async (req, res) => {
     const { email } = req.body;
 
     if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
+      res.status(400).json({ message: "No file uploaded" });
+      return;
+    }
+
+    const collection = await getDbCollection("user");
+
+    const user = await collection.findOne({ email });
+
+    if (!user) {
+      res.status(400).json({ message: "No user found" });
+      return;
     }
 
     // Validate file type
@@ -56,16 +66,13 @@ router.post("/profile-image", async (req, res) => {
       "profile"
     );
 
-    const collection = await getDbCollection("user");
-
     await collection.updateOne(
       { email: email },
       {
         $set: {
           profileUrl: imageUrl,
         },
-      },
-      { upsert: true }
+      }
     );
   } catch (error) {
     res.status(500).json({ error: "Error" });

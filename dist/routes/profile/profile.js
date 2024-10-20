@@ -46,7 +46,14 @@ router.post("/profile-image", (req, res) => __awaiter(void 0, void 0, void 0, fu
     try {
         const { email } = req.body;
         if (!req.file) {
-            return res.status(400).json({ message: "No file uploaded" });
+            res.status(400).json({ message: "No file uploaded" });
+            return;
+        }
+        const collection = yield (0, helpers_1.getDbCollection)("user");
+        const user = yield collection.findOne({ email });
+        if (!user) {
+            res.status(400).json({ message: "No user found" });
+            return;
         }
         // Validate file type
         if (![
@@ -56,12 +63,11 @@ router.post("/profile-image", (req, res) => __awaiter(void 0, void 0, void 0, fu
             return res.status(400).json({ message: "Unsupported file type" });
         }
         let imageUrl = yield (0, helpers_1.uploadToBlobStorage)(req.file.buffer, `${req.file.originalname}-${Date.now()}`, "profile");
-        const collection = yield (0, helpers_1.getDbCollection)("user");
         yield collection.updateOne({ email: email }, {
             $set: {
                 profileUrl: imageUrl,
             },
-        }, { upsert: true });
+        });
     }
     catch (error) {
         res.status(500).json({ error: "Error" });
