@@ -27,6 +27,7 @@ router.get("/:email", (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 expirationDate: user.expirationDate,
                 deaNumber: user.deaNumber,
                 npiNumber: user.npiNumber,
+                licenseNumber: user.licenseNumber,
             };
             res.status(200).json({ message: profile });
         }

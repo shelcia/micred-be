@@ -18,6 +18,7 @@ router.get("/:email", async (req, res) => {
         expirationDate: user.expirationDate,
         deaNumber: user.deaNumber,
         npiNumber: user.npiNumber,
+        licenseNumber: user.licenseNumber,
       };
       res.status(200).json({ message: profile });
     } else {
