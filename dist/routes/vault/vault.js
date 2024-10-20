@@ -112,6 +112,44 @@ router.get("/get-certs/:email", (req, res) => __awaiter(void 0, void 0, void 0, 
         res.status(500).send("Failed to send OTP");
     }
 }));
+router.post("/add-certs", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { email, licenseType, primarySpeciality, licensedState, expiryDate, licenseNumber, empType, empNumber, empAddress, empPhNumber, } = req.body;
+        if (!req.file) {
+            return res.status(400).json({ message: "No file uploaded" });
+        }
+        // Validate file type
+        if (![
+            "application/pdf",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ].includes(req.file.mimetype)) {
+            return res.status(400).json({ message: "Unsupported file type" });
+        }
+        let docUrl = yield (0, helpers_1.uploadToBlobStorage)(req.file.buffer, `${req.file.originalname}-${Date.now()}`, "licenses");
+        const collection = yield (0, helpers_1.getDbCollection)("vault");
+        yield collection.updateOne({ email: email }, {
+            $set: {
+                licenseCertificateUrl: docUrl,
+                licenseCertificateAt: new Date(),
+                licenseType: licenseType,
+                primarySpeciality: primarySpeciality,
+                licensedState: licensedState,
+                expiryDate: expiryDate,
+                licenseNumber: licenseNumber,
+                empType: empType,
+                empNumber: empNumber,
+                empAddress: empAddress,
+                empPhNumber: empPhNumber,
+                isVerified: false,
+            },
+        }, { upsert: true });
+        res.status(200).json({ message: "Successfully Uploaded Certificates" });
+    }
+    catch (error) {
+        console.error("Error fetching Certificates:", error);
+        res.status(500).send("Failed to send OTP");
+    }
+}));
 // router.post("/api/vault/upload/cert", async (req, res) => {
 //   const blobServiceClient = BlobServiceClient.fromConnectionString(
 //     process.env.AZURE_STORAGE_CONNECTION_STRING
