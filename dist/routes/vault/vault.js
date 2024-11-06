@@ -19,7 +19,7 @@ const multer_1 = __importDefault(require("multer"));
 const router = (0, express_1.Router)();
 const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
 router.post("/send-otp", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { email, _id } = req.body;
+    const { email } = req.body;
     if (!email) {
         return res.status(400).send("Email is required");
     }
@@ -27,7 +27,7 @@ router.post("/send-otp", (req, res) => __awaiter(void 0, void 0, void 0, functio
         const collection = yield (0, helpers_1.getDbCollection)("vault");
         const otp = (0, auth_1.generateOtp)();
         // Store the OTP in the database with the user (you might want to also store an expiration time)
-        yield collection.updateOne({ email: email }, { $set: { otp: otp, otpCreatedAt: new Date(), _id: _id } }, { upsert: true } // Create a new document if one does not exist
+        yield collection.updateOne({ email: email }, { $set: { otp: otp, otpCreatedAt: new Date() } }, { upsert: true } // Create a new document if one does not exist
         );
         // Send the OTP to the user's email
         yield (0, helpers_1.sendMail)(email, "Your OTP Code", `Your OTP code is: ${otp}`);
