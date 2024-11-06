@@ -201,35 +201,37 @@ router.post(
   "/upload-certificate",
   upload.single("certificate"),
   async (req, res) => {
+    if (!req.file) {
+      res.status(400).send("No file uploaded");
+      return;
+    }
+
+    // Get the file buffer from the uploaded certificate
+    const fileBuffer = req.file.buffer;
+
+    // Perform OCR analysis using Azure Form Recognizer's OCR capabilities
+    const poller = await formRecognizerClient.beginAnalyzeDocument(
+      "prebuilt-document",
+      fileBuffer
+    );
+
+    // Poll until the OCR analysis is complete
+    const result = await poller.pollUntilDone();
+
+    if (!result) {
+      res.status(400).send("Document OCR analysis failed");
+      return;
+    }
+
+    // Get the full text content from the document
+    const extractedText = result.content || "";
+
+    // Use pattern matching to extract the relevant fields
+    const extractedData = extractFromText(extractedText);
+
+    // Send the extracted data as a response
+    res.json(extractedData);
     try {
-      if (!req.file) {
-        return res.status(400).send("No file uploaded");
-      }
-
-      // Get the file buffer from the uploaded certificate
-      const fileBuffer = req.file.buffer;
-
-      // Perform OCR analysis using Azure Form Recognizer's OCR capabilities
-      const poller = await formRecognizerClient.beginAnalyzeDocument(
-        "prebuilt-document",
-        fileBuffer
-      );
-
-      // Poll until the OCR analysis is complete
-      const result = await poller.pollUntilDone();
-
-      if (!result) {
-        return res.status(400).send("Document OCR analysis failed");
-      }
-
-      // Get the full text content from the document
-      const extractedText = result.content || "";
-
-      // Use pattern matching to extract the relevant fields
-      const extractedData = extractFromText(extractedText);
-
-      // Send the extracted data as a response
-      res.json(extractedData);
     } catch (error: any) {
       console.error("Error processing certificate:", error.message);
       res.status(500).send("Error processing the certificate");
