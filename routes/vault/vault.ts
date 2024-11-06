@@ -12,7 +12,7 @@ const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.post("/send-otp", async (req: Request, res: Response) => {
-  const { email, _id } = req.body;
+  const { email } = req.body;
 
   if (!email) {
     return res.status(400).send("Email is required");
@@ -26,7 +26,7 @@ router.post("/send-otp", async (req: Request, res: Response) => {
     // Store the OTP in the database with the user (you might want to also store an expiration time)
     await collection.updateOne(
       { email: email },
-      { $set: { otp: otp, otpCreatedAt: new Date(), _id: _id } },
+      { $set: { otp: otp, otpCreatedAt: new Date() } },
       { upsert: true } // Create a new document if one does not exist
     );
 
