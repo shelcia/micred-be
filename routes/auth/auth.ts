@@ -11,6 +11,9 @@ import {
 } from "../../lib/helpers";
 import axios from "axios";
 import Joi from "joi";
+import dayjs from "dayjs";
+import { StateKeys } from "../../lib/types";
+import { cmeGuidelines } from "../../constants";
 
 const router = Router();
 
@@ -184,8 +187,17 @@ router.post(
         licenseNumber,
         expirationDate,
         deaNumber,
-      } = req.body;
-
+      } = req.body as {
+        currentLicenseDate: string;
+        cmeHoursCompleted: number;
+        email: string;
+        npiNumber: string;
+        primarySpeciality: string;
+        licensedState: StateKeys;
+        licenseNumber: string;
+        expirationDate: string;
+        deaNumber: string;
+      };
       let licenseCertificateUrl = "";
       if (req.file) {
         console.log(req.file);
@@ -205,6 +217,13 @@ router.post(
         return res.status(404).json({ message: "User not found." });
       }
 
+      let stateGuidelines = cmeGuidelines[licensedState];
+      const { renewalCycleYears } = stateGuidelines;
+
+      const nextRenewalDate = dayjs(user.expirationDate)
+        .add(renewalCycleYears, "year")
+        .format("MM/DD/YYYY");
+
       await collection.updateOne(
         { email },
         {
@@ -214,6 +233,7 @@ router.post(
             licensedState: licensedState,
             licenseNumber: licenseNumber,
             expirationDate: expirationDate,
+            nextRenewalDate: nextRenewalDate,
             deaNumber: deaNumber,
             licenseCertificateUrl: [
               ...(user.licenseCertificateUrl ? user.licenseCertificateUrl : []),
@@ -245,6 +265,52 @@ router.get("/npi/:number", async (req: Request, res: Response) => {
     res.status(500).json({ message: "Error fetching NPI data", error });
   }
 });
+
+// router.post("/complete-date", async (req: Request, res: Response) => {
+//   try {
+//     const { email } = req.body;
+
+//     const collection = await getDbCollection("user");
+//     // Find user by email
+//     const user = await collection.findOne({ email });
+
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found." });
+//     }
+
+//     // Ensure the licensedState is valid
+//     const licensedState = user.licensedState as StateKeys; // Explicitly cast if you are sure the state is valid
+//     if (!licensedState || !(licensedState in cmeGuidelines)) {
+//       return res.status(400).json({
+//         message: "Invalid or missing licensed state for the user.",
+//       });
+//     }
+
+//     let stateGuidelines = cmeGuidelines[licensedState];
+//     const { renewalCycleYears } = stateGuidelines;
+
+//     const nextRenewalDate = dayjs(user.expirationDate)
+//       .add(renewalCycleYears, "year")
+//       .format("MM/DD/YYYY");
+
+//     await collection.updateOne(
+//       { email },
+//       {
+//         $set: {
+//           nextRenewalDate: nextRenewalDate,
+//         },
+//       }
+//     );
+
+//     res
+//       .status(201)
+//       .json({ message: "Profile created successfully", profile: user });
+//   } catch (error) {
+//     res
+//       .status(500)
+//       .json({ message: "Error while completing form", error: error });
+//   }
+// });
 
 //REGISTER SCHEMA - NEEDS CHANGE
 // const registerSchema = Joi.object({

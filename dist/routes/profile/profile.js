@@ -16,6 +16,7 @@ const express_1 = require("express");
 const helpers_1 = require("../../lib/helpers");
 const multer_1 = __importDefault(require("multer"));
 const ai_form_recognizer_1 = require("@azure/ai-form-recognizer");
+const constants_1 = require("../../constants");
 const router = (0, express_1.Router)();
 const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage() });
 router.get("/:email", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -24,6 +25,25 @@ router.get("/:email", (req, res) => __awaiter(void 0, void 0, void 0, function* 
         const collection = yield (0, helpers_1.getDbCollection)("user");
         // Find user by email
         const user = yield collection.findOne({ email: req.params.email });
+        if (!user) {
+            res.status(404).json({ message: "User not found" });
+            return;
+        }
+        // Fetch CME hours from progress collection
+        const progressCollection = yield (0, helpers_1.getDbCollection)("progress");
+        const progressRecords = yield progressCollection
+            .find({ email: req.params.email })
+            .toArray();
+        // Calculate total CME hours completed
+        const cmeHoursCompleted = progressRecords.reduce((total, record) => total + (record.progressCertificateHours || 0), 0);
+        const licensedState = user.licensedState; // Explicitly cast if you are sure the state is valid
+        if (!licensedState || !(licensedState in constants_1.cmeGuidelines)) {
+            return res.status(400).json({
+                message: "Invalid or missing licensed state for the user.",
+            });
+        }
+        let stateGuidelines = constants_1.cmeGuidelines[licensedState];
+        const { cmeHoursRequired } = stateGuidelines;
         if (user) {
             const profile = {
                 firstName: user.firstName,
@@ -37,6 +57,9 @@ router.get("/:email", (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 deaNumber: user.deaNumber,
                 npiNumber: user.npiNumber,
                 licenseNumber: user.licenseNumber,
+                nextRenewalDate: user.nextRenewalDate,
+                cmeHoursCompleted: cmeHoursCompleted,
+                cmeHoursRequired: cmeHoursRequired,
             };
             res.status(200).json({ message: profile });
         }
@@ -150,8 +173,11 @@ const extractFromText = (text) => {
 };
 // Route to upload and process the certificate using OCR and regex
 router.post("/upload-certificate", upload.single("certificate"), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    console.log("Headers:", req.headers);
+    console.log("Body:", req.body);
+    console.log("File:", req.file);
     if (!req.file) {
-        res.status(400).send("No file uploaded");
+        res.status(400).json({ message: "No file uploaded" });
         return;
     }
     // Get the file buffer from the uploaded certificate
@@ -237,6 +263,128 @@ router.post("/upload-dea-certificate", upload.single("certificate"), (req, res) 
     catch (error) {
         console.error("Error processing DEA certificate:", error.message);
         res.status(500).send("Error processing the certificate");
+    }
+}));
+router.post("/custom-resume", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { resume, email } = req.body;
+        const collection = yield (0, helpers_1.getDbCollection)("user");
+        const user = yield collection.findOne({ email });
+        if (!user) {
+            res.status(400).json({ message: "No user found" });
+            return;
+        }
+        yield collection.updateOne({ email: email }, {
+            $set: {
+                customResume: resume,
+            },
+        });
+        res.status(200).json({ message: "Added Custom Resume" });
+    }
+    catch (error) {
+        console.error("Error Uploading Custom Resume:", error.message);
+        res.status(500).json({ message: "Error Uploading Custom Resume" });
+    }
+}));
+router.get("/custom-resume/:email", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const email = req.params.email;
+        const collection = yield (0, helpers_1.getDbCollection)("user");
+        const user = yield collection.findOne({ email });
+        if (!user) {
+            res.status(400).json({ message: "No user found" });
+            return;
+        }
+        res.status(200).json({ message: user.customResume });
+    }
+    catch (error) {
+        console.error("Error processing DEA certificate:", error.message);
+        res.status(500).send("Error processing the certificate");
+    }
+}));
+router.get("/view-profile/:email", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const email = req.params.email;
+        const collection = yield (0, helpers_1.getDbCollection)("user");
+        const user = yield collection.findOne({ email });
+        if (!user) {
+            res.status(400).json({ message: "No user found" });
+            return;
+        }
+        const progressCollection = yield (0, helpers_1.getDbCollection)("progress");
+        const progresses = yield progressCollection.find({ email }).toArray();
+        const { number, firstName, middleName, lastName, npiNumber, primarySpeciality, licensedState, licenseNumber, expirationDate, deaNumber, licenseCertificateUrl, } = user;
+        res.status(200).json({
+            message: {
+                number,
+                firstName,
+                middleName,
+                lastName,
+                npiNumber,
+                primarySpeciality,
+                licensedState,
+                licenseNumber,
+                expirationDate,
+                deaNumber,
+                licenseCertificateUrl,
+                progresses: progresses,
+            },
+        });
+    }
+    catch (error) {
+        res.status(500).json({ error: "Error" });
+    }
+}));
+router.post("/update-employer-info", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { email, employmentType, empNumber, empAddress, empPhNumber } = req.body;
+        const collection = yield (0, helpers_1.getDbCollection)("user");
+        const user = yield collection.findOne({ email });
+        if (!user) {
+            res.status(400).json({ message: "No user found" });
+            return;
+        }
+        yield collection.updateOne({ email: email }, {
+            $set: {
+                employmentType: employmentType,
+                empNumber: empNumber,
+                empAddress: empAddress,
+                empPhNumber: empPhNumber,
+            },
+        });
+        res.status(200).json({ message: "Update Employer Information" });
+    }
+    catch (error) {
+        console.error("Error Updating Employer Information:", error.message);
+        res.status(500).json({ message: "Error Updating Employer Information" });
+    }
+}));
+router.post("/cme-hours", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { email, startDate, endDate } = req.body;
+        if (!email || !startDate || !endDate) {
+            return res
+                .status(400)
+                .json({ message: "Email, startDate, and endDate are required" });
+        }
+        const progressCollection = yield (0, helpers_1.getDbCollection)("progress");
+        // Fetch records that fall within the date range
+        const progressRecords = yield progressCollection
+            .find({
+            email: email,
+            issueDate: {
+                $gte: new Date(startDate),
+                $lte: new Date(endDate),
+            },
+        })
+            .toArray();
+        // Calculate total CME hours completed within the date range
+        const totalCmeHours = progressRecords.reduce((total, record) => total + (record.progressCertificateHours || 0), 0);
+        res.status(200).json({ cmeHoursCompleted: totalCmeHours });
+    }
+    catch (error) {
+        console.error("Error fetching CME hours:", error);
+        res.status(500).json({ message: "Error fetching CME hours", error: error });
     }
 }));
 // router.post("/api/profile/create", async (req, res) => {

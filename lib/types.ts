@@ -19,3 +19,11 @@ export interface ICert {
   deaNumber: string;
   licenseCertificateUrl: string;
 }
+
+export interface CmeGuidelines {
+  cmeHoursRequired: number;
+  renewalCycleYears: number;
+}
+
+// Define supported state keys
+export type StateKeys = "CA" | "NY" | "TX"; // Add more state abbreviations as needed

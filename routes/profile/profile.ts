@@ -7,6 +7,8 @@ import {
   AzureKeyCredential,
   DocumentAnalysisClient,
 } from "@azure/ai-form-recognizer";
+import { cmeGuidelines } from "../../constants";
+import { StateKeys } from "../../lib/types";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -17,6 +19,33 @@ router.get("/:email", async (req, res) => {
     const collection = await getDbCollection("user");
     // Find user by email
     const user = await collection.findOne({ email: req.params.email });
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+    // Fetch CME hours from progress collection
+    const progressCollection = await getDbCollection("progress");
+    const progressRecords = await progressCollection
+      .find({ email: req.params.email })
+      .toArray();
+
+    // Calculate total CME hours completed
+    const cmeHoursCompleted = progressRecords.reduce(
+      (total, record) => total + (record.progressCertificateHours || 0),
+      0
+    );
+
+    const licensedState = user.licensedState as StateKeys; // Explicitly cast if you are sure the state is valid
+    if (!licensedState || !(licensedState in cmeGuidelines)) {
+      return res.status(400).json({
+        message: "Invalid or missing licensed state for the user.",
+      });
+    }
+
+    let stateGuidelines = cmeGuidelines[licensedState];
+
+    const { cmeHoursRequired } = stateGuidelines;
+
     if (user) {
       const profile = {
         firstName: user.firstName,
@@ -30,6 +59,9 @@ router.get("/:email", async (req, res) => {
         deaNumber: user.deaNumber,
         npiNumber: user.npiNumber,
         licenseNumber: user.licenseNumber,
+        nextRenewalDate: user.nextRenewalDate,
+        cmeHoursCompleted: cmeHoursCompleted,
+        cmeHoursRequired: cmeHoursRequired,
       };
       res.status(200).json({ message: profile });
     } else {
@@ -201,8 +233,11 @@ router.post(
   "/upload-certificate",
   upload.single("certificate"),
   async (req, res) => {
+    console.log("Headers:", req.headers);
+    console.log("Body:", req.body);
+    console.log("File:", req.file);
     if (!req.file) {
-      res.status(400).send("No file uploaded");
+      res.status(400).json({ message: "No file uploaded" });
       return;
     }
 
@@ -315,6 +350,170 @@ router.post(
     }
   }
 );
+
+router.post("/custom-resume", async (req, res) => {
+  try {
+    const { resume, email } = req.body;
+    const collection = await getDbCollection("user");
+
+    const user = await collection.findOne({ email });
+
+    if (!user) {
+      res.status(400).json({ message: "No user found" });
+      return;
+    }
+
+    await collection.updateOne(
+      { email: email },
+      {
+        $set: {
+          customResume: resume,
+        },
+      }
+    );
+
+    res.status(200).json({ message: "Added Custom Resume" });
+  } catch (error: any) {
+    console.error("Error Uploading Custom Resume:", error.message);
+    res.status(500).json({ message: "Error Uploading Custom Resume" });
+  }
+});
+
+router.get("/custom-resume/:email", async (req, res) => {
+  try {
+    const email = req.params.email;
+    const collection = await getDbCollection("user");
+
+    const user = await collection.findOne({ email });
+
+    if (!user) {
+      res.status(400).json({ message: "No user found" });
+      return;
+    }
+
+    res.status(200).json({ message: user.customResume });
+  } catch (error: any) {
+    console.error("Error processing DEA certificate:", error.message);
+    res.status(500).send("Error processing the certificate");
+  }
+});
+
+router.get("/view-profile/:email", async (req, res) => {
+  try {
+    const email = req.params.email;
+    const collection = await getDbCollection("user");
+    const user = await collection.findOne({ email });
+    if (!user) {
+      res.status(400).json({ message: "No user found" });
+      return;
+    }
+
+    const progressCollection = await getDbCollection("progress");
+
+    const progresses = await progressCollection.find({ email }).toArray();
+
+    const {
+      number,
+      firstName,
+      middleName,
+      lastName,
+      npiNumber,
+      primarySpeciality,
+      licensedState,
+      licenseNumber,
+      expirationDate,
+      deaNumber,
+      licenseCertificateUrl,
+    } = user;
+
+    res.status(200).json({
+      message: {
+        number,
+        firstName,
+        middleName,
+        lastName,
+        npiNumber,
+        primarySpeciality,
+        licensedState,
+        licenseNumber,
+        expirationDate,
+        deaNumber,
+        licenseCertificateUrl,
+        progresses: progresses,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Error" });
+  }
+});
+
+router.post("/update-employer-info", async (req, res) => {
+  try {
+    const { email, employmentType, empNumber, empAddress, empPhNumber } =
+      req.body;
+    const collection = await getDbCollection("user");
+
+    const user = await collection.findOne({ email });
+
+    if (!user) {
+      res.status(400).json({ message: "No user found" });
+      return;
+    }
+
+    await collection.updateOne(
+      { email: email },
+      {
+        $set: {
+          employmentType: employmentType,
+          empNumber: empNumber,
+          empAddress: empAddress,
+          empPhNumber: empPhNumber,
+        },
+      }
+    );
+
+    res.status(200).json({ message: "Update Employer Information" });
+  } catch (error: any) {
+    console.error("Error Updating Employer Information:", error.message);
+    res.status(500).json({ message: "Error Updating Employer Information" });
+  }
+});
+
+router.post("/cme-hours", async (req, res) => {
+  try {
+    const { email, startDate, endDate } = req.body;
+
+    if (!email || !startDate || !endDate) {
+      return res
+        .status(400)
+        .json({ message: "Email, startDate, and endDate are required" });
+    }
+
+    const progressCollection = await getDbCollection("progress");
+
+    // Fetch records that fall within the date range
+    const progressRecords = await progressCollection
+      .find({
+        email: email,
+        issueDate: {
+          $gte: new Date(startDate),
+          $lte: new Date(endDate),
+        },
+      })
+      .toArray();
+
+    // Calculate total CME hours completed within the date range
+    const totalCmeHours = progressRecords.reduce(
+      (total, record) => total + (record.progressCertificateHours || 0),
+      0
+    );
+
+    res.status(200).json({ cmeHoursCompleted: totalCmeHours });
+  } catch (error) {
+    console.error("Error fetching CME hours:", error);
+    res.status(500).json({ message: "Error fetching CME hours", error: error });
+  }
+});
 
 // router.post("/api/profile/create", async (req, res) => {
 //   const client = new CosmosClient({
