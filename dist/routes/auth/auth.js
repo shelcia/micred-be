@@ -21,6 +21,8 @@ const multer_1 = __importDefault(require("multer"));
 const helpers_1 = require("../../lib/helpers");
 const axios_1 = __importDefault(require("axios"));
 const joi_1 = __importDefault(require("joi"));
+const dayjs_1 = __importDefault(require("dayjs"));
+const constants_1 = require("../../constants");
 const router = (0, express_1.Router)();
 // Generate a random OTP
 function generateOtp() {
@@ -158,6 +160,11 @@ router.post("/complete-profile", upload.single("licenseCertificate"), (req, res)
         if (!user) {
             return res.status(404).json({ message: "User not found." });
         }
+        let stateGuidelines = constants_1.cmeGuidelines[licensedState];
+        const { renewalCycleYears } = stateGuidelines;
+        const nextRenewalDate = (0, dayjs_1.default)(user.expirationDate)
+            .add(renewalCycleYears, "year")
+            .format("MM/DD/YYYY");
         yield collection.updateOne({ email }, {
             $set: {
                 npiNumber: npiNumber,
@@ -165,6 +172,7 @@ router.post("/complete-profile", upload.single("licenseCertificate"), (req, res)
                 licensedState: licensedState,
                 licenseNumber: licenseNumber,
                 expirationDate: expirationDate,
+                nextRenewalDate: nextRenewalDate,
                 deaNumber: deaNumber,
                 licenseCertificateUrl: [
                     ...(user.licenseCertificateUrl ? user.licenseCertificateUrl : []),
@@ -192,6 +200,44 @@ router.get("/npi/:number", (req, res) => __awaiter(void 0, void 0, void 0, funct
         res.status(500).json({ message: "Error fetching NPI data", error });
     }
 }));
+// router.post("/complete-date", async (req: Request, res: Response) => {
+//   try {
+//     const { email } = req.body;
+//     const collection = await getDbCollection("user");
+//     // Find user by email
+//     const user = await collection.findOne({ email });
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found." });
+//     }
+//     // Ensure the licensedState is valid
+//     const licensedState = user.licensedState as StateKeys; // Explicitly cast if you are sure the state is valid
+//     if (!licensedState || !(licensedState in cmeGuidelines)) {
+//       return res.status(400).json({
+//         message: "Invalid or missing licensed state for the user.",
+//       });
+//     }
+//     let stateGuidelines = cmeGuidelines[licensedState];
+//     const { renewalCycleYears } = stateGuidelines;
+//     const nextRenewalDate = dayjs(user.expirationDate)
+//       .add(renewalCycleYears, "year")
+//       .format("MM/DD/YYYY");
+//     await collection.updateOne(
+//       { email },
+//       {
+//         $set: {
+//           nextRenewalDate: nextRenewalDate,
+//         },
+//       }
+//     );
+//     res
+//       .status(201)
+//       .json({ message: "Profile created successfully", profile: user });
+//   } catch (error) {
+//     res
+//       .status(500)
+//       .json({ message: "Error while completing form", error: error });
+//   }
+// });
 //REGISTER SCHEMA - NEEDS CHANGE
 // const registerSchema = Joi.object({
 //   name: Joi.string().min(3).required(),

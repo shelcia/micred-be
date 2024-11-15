@@ -103,6 +103,24 @@ router.post("/save-pin", async (req: Request, res: Response) => {
   }
 });
 
+router.post("/vault-pin", async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  try {
+    if (!email) {
+      res.status(400).send("Email is required");
+      return;
+    }
+
+    const collection = await getDbCollection("vault");
+    const vaultCerts = await collection.find({ email }).toArray();
+    res.status(200).send(vaultCerts);
+  } catch (error) {
+    console.error("Error sending OTP:", error);
+    res.status(500).send("Failed to send OTP");
+  }
+});
+
 router.get("/get-certs/:email", async (req: Request, res: Response) => {
   const email = req.params.email;
 
@@ -152,17 +170,8 @@ router.post(
   upload.single("licenseCertificate"),
   async (req: Request, res: Response) => {
     try {
-      const {
-        email,
-        licenseType,
-        primarySpeciality,
-        licensedState,
-        expiryDate,
-        licenseNumber,
-        empType,
-        empAddress,
-        empPhNumber,
-      } = req.body;
+      const { email, licenseType, licensedState, expiryDate, licenseNumber } =
+        req.body;
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
@@ -197,13 +206,9 @@ router.post(
                 licenseCertificateUrl: docUrl,
                 licenseCertificateAt: new Date(),
                 licenseType: licenseType,
-                primarySpeciality: primarySpeciality,
                 licensedState: licensedState,
                 expiryDate: expiryDate,
                 licenseNumber: licenseNumber,
-                empType: empType,
-                empAddress: empAddress,
-                empPhNumber: empPhNumber,
                 isVerified: false,
               },
             ],

@@ -87,6 +87,22 @@ router.post("/save-pin", (req, res) => __awaiter(void 0, void 0, void 0, functio
         res.status(500).send("Failed to send OTP");
     }
 }));
+router.post("/vault-pin", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { email } = req.body;
+    try {
+        if (!email) {
+            res.status(400).send("Email is required");
+            return;
+        }
+        const collection = yield (0, helpers_1.getDbCollection)("vault");
+        const vaultCerts = yield collection.find({ email }).toArray();
+        res.status(200).send(vaultCerts);
+    }
+    catch (error) {
+        console.error("Error sending OTP:", error);
+        res.status(500).send("Failed to send OTP");
+    }
+}));
 router.get("/get-certs/:email", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const email = req.params.email;
     if (!email) {
@@ -125,7 +141,7 @@ router.get("/get-certs/:email", (req, res) => __awaiter(void 0, void 0, void 0, 
 }));
 router.post("/add-certs", upload.single("licenseCertificate"), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { email, licenseType, primarySpeciality, licensedState, expiryDate, licenseNumber, empType, empAddress, empPhNumber, } = req.body;
+        const { email, licenseType, licensedState, expiryDate, licenseNumber } = req.body;
         if (!req.file) {
             return res.status(400).json({ message: "No file uploaded" });
         }
@@ -147,13 +163,9 @@ router.post("/add-certs", upload.single("licenseCertificate"), (req, res) => __a
                         licenseCertificateUrl: docUrl,
                         licenseCertificateAt: new Date(),
                         licenseType: licenseType,
-                        primarySpeciality: primarySpeciality,
                         licensedState: licensedState,
                         expiryDate: expiryDate,
                         licenseNumber: licenseNumber,
-                        empType: empType,
-                        empAddress: empAddress,
-                        empPhNumber: empPhNumber,
                         isVerified: false,
                     },
                 ],
